@@ -1,32 +1,22 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
+import { ThemeProvider, useTheme } from "./lib/theme";
 import AuthForm from "./components/AuthForm";
 import SessionForm from "./components/SessionForm";
 import Dashboard from "./components/Dashboard";
+import History from "./components/History";
 
-const TAB = {
-  dashboard: "📈",
-  add: "✚",
-};
+const TABS = [
+  { id: "add",       icon: "✚", label: "Session" },
+  { id: "dashboard", icon: "📊", label: "Stats" },
+  { id: "history",   icon: "📋", label: "Historique" },
+];
 
-const S = {
-  app: { background: "linear-gradient(160deg,#0a0a18 0%,#0f0f22 60%,#0d0d1a 100%)", minHeight: "100vh", fontFamily: "'Courier New',monospace" },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 14px 0" },
-  logo: { fontSize: 13, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase", background: "linear-gradient(90deg,#e94560 20%,#f0c040 80%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" },
-  logoutBtn: { padding: "5px 10px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#555", fontSize: 10, cursor: "pointer", fontFamily: "inherit" },
-  nav: { display: "flex", borderTop: "1px solid rgba(255,255,255,0.07)", position: "fixed", bottom: 0, left: 0, right: 0, background: "#0a0a18", zIndex: 50 },
-  navBtn: (active) => ({
-    flex: 1, padding: "14px 0", background: "none", border: "none", cursor: "pointer", fontSize: 20,
-    borderTop: active ? "2px solid #e94560" : "2px solid transparent",
-    opacity: active ? 1 : 0.4,
-  }),
-  content: { paddingBottom: 70 },
-};
-
-export default function App() {
+function AppInner() {
+  const { pref, setPref } = useTheme();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState("add");
   const [sessions, setSessions] = useState([]);
 
   useEffect(() => {
@@ -34,56 +24,81 @@ export default function App() {
       setSession(data.session);
       setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (session) loadSessions();
-  }, [session]);
+  useEffect(() => { if (session) loadSessions(); }, [session]);
 
   async function loadSessions() {
-    const { data } = await supabase
-      .from("sessions")
-      .select("*")
-      .order("date", { ascending: true });
+    const { data } = await supabase.from("sessions").select("*").order("date", { ascending: true });
     if (data) setSessions(data);
   }
 
   if (loading) return (
-    <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
-      <span style={{ color: "#333", fontSize: 20 }}>🎳</span>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <span style={{ fontSize: 32 }}>🎳</span>
     </div>
   );
 
   if (!session) return <AuthForm />;
 
+  const THEME_ICONS = { light: "☀️", dark: "🌙", system: "💻" };
+  const nextTheme = { light: "dark", dark: "system", system: "light" };
+
   return (
-    <div style={S.app}>
-      <div style={S.header}>
-        <span style={S.logo}>🎳 BowlingStats</span>
-        <button style={S.logoutBtn} onClick={() => supabase.auth.signOut()}>Déco</button>
-      </div>
+    <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
 
-      <div style={S.content}>
+      {/* Header */}
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 0" }}>
+        <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)", letterSpacing: -0.3 }}>
+          🎳 BowlingStats
+        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setPref(nextTheme[pref])} style={iconBtnStyle} title={`Thème : ${pref}`}>
+            {THEME_ICONS[pref]}
+          </button>
+          <button onClick={() => supabase.auth.signOut()} style={iconBtnStyle}>
+            ↩
+          </button>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main style={{ paddingBottom: 80 }}>
+        {tab === "add"       && <SessionForm userId={session.user.id} onSaved={() => { loadSessions(); setTab("dashboard"); }} />}
         {tab === "dashboard" && <Dashboard sessions={sessions} />}
-        {tab === "add" && (
-          <SessionForm
-            userId={session.user.id}
-            onSaved={() => { loadSessions(); setTab("dashboard"); }}
-          />
-        )}
-      </div>
+        {tab === "history"   && <History sessions={sessions} onDeleted={loadSessions} />}
+      </main>
 
-      <nav style={S.nav}>
-        {Object.entries(TAB).map(([key, icon]) => (
-          <button key={key} style={S.navBtn(tab === key)} onClick={() => setTab(key)}>
-            {icon}
+      {/* Bottom nav */}
+      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "var(--surface)", borderTop: "1px solid var(--border)", display: "flex", zIndex: 50 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            flex: 1, padding: "12px 0 10px", background: "none", border: "none",
+            borderTop: tab === t.id ? "2px solid var(--primary)" : "2px solid transparent",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+          }}>
+            <span style={{ fontSize: 18, opacity: tab === t.id ? 1 : 0.4 }}>{t.icon}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: tab === t.id ? "var(--primary)" : "var(--text-3)", letterSpacing: 0.3 }}>
+              {t.label}
+            </span>
           </button>
         ))}
       </nav>
     </div>
+  );
+}
+
+const iconBtnStyle = {
+  width: 34, height: 34, borderRadius: "var(--radius-sm)", background: "var(--surface-2)",
+  border: "1px solid var(--border)", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center"
+};
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
   );
 }
