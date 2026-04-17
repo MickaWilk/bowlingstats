@@ -1,5 +1,9 @@
-import { useMemo } from "react";
-import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { useState, useMemo } from "react";
+import {
+  ComposedChart, Line, Area, Bar, Cell,
+  XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine, Brush, Legend
+} from "recharts";
 
 const sdColor = (sd) => sd === null ? "var(--text-3)" : sd < 15 ? "var(--green)" : sd < 25 ? "var(--gold)" : "var(--red)";
 
@@ -19,27 +23,38 @@ function computeStats(session) {
   };
 }
 
-const CustomTooltip = ({ active, payload }) => {
+const PerfTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload;
   if (!d) return null;
   return (
     <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 12, color: "var(--text)", boxShadow: "var(--shadow)", minWidth: 160 }}>
       <div style={{ fontWeight: 700, color: "var(--primary)", marginBottom: 8 }}>🎳 {d.date}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Row label="Parties" value={d.n} color="var(--text)" />
-        <Row label="Moyenne" value={d.avg} color="var(--gold)" />
-        {d.sd !== null && <Row label="Régularité σ" value={d.sd} color={sdColor(d.sd)} />}
-        <Row label="Min / Max" value={`${d.min} / ${d.max}`} color="var(--blue)" />
-        {d.trend && <Row label="Tendance" value={d.trend} color="var(--purple)" />}
-      </div>
+      <Row label="Parties" value={d.n} color="var(--text)" />
+      <Row label="Moyenne" value={d.avg} color="var(--gold)" />
+      {d.sd !== null && <Row label="σ" value={d.sd} color={sdColor(d.sd)} />}
+      <Row label="Min / Max" value={`${d.min} / ${d.max}`} color="var(--blue)" />
+      {d.trend && <Row label="Tendance" value={d.trend} color="var(--purple)" />}
+    </div>
+  );
+};
+
+const RegTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  if (!d) return null;
+  return (
+    <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 12, color: "var(--text)", boxShadow: "var(--shadow)" }}>
+      <div style={{ fontWeight: 700, color: "var(--purple)", marginBottom: 8 }}>📊 {d.date}</div>
+      {d.sd !== null ? <Row label="σ" value={d.sd} color={sdColor(d.sd)} /> : <span style={{ color: "var(--text-3)" }}>1 seule partie</span>}
+      {d.rSD != null && <Row label="Tendance σ" value={d.rSD} color="var(--purple)" />}
     </div>
   );
 };
 
 function Row({ label, value, color }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
       <span style={{ color: "var(--text-2)" }}>{label}</span>
       <span style={{ fontWeight: 700, color }}>{value}</span>
     </div>
@@ -48,111 +63,234 @@ function Row({ label, value, color }) {
 
 function StatCard({ icon, value, label, color, sub }) {
   return (
-    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "14px 12px" }}>
-      <div style={{ fontSize: 18, marginBottom: 6 }}>{icon}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>{label}</div>
-      {sub && <div style={{ fontSize: 11, color: "var(--text-2)", marginTop: 2 }}>{sub}</div>}
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 10px" }}>
+      <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 3 }}>{label}</div>
+      {sub && <div style={{ fontSize: 10, color: "var(--text-2)", marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
 
+const INFO_CONTENT = [
+  { title: "Moyenne", color: "var(--gold)", text: "Moyenne de tous les scores de la session. Elle monte = tu progresses globalement." },
+  { title: "σ (écart-type)", color: "var(--red)", text: "Mesure la dispersion de tes scores dans une session. σ < 15 = très régulier · 15–25 = correct · > 25 = grosse dispersion." },
+  { title: "Tendance (ligne violette)", color: "var(--purple)", text: "Moyenne mobile sur les 5 dernières sessions. Filtre le bruit et montre la vraie direction." },
+  { title: "Zone bleue", color: "var(--blue)", text: "Amplitude min–max de chaque session. L'écart entre tes scores extrêmes." },
+  { title: "Points colorés", color: "var(--text)", text: "Couleur = régularité de la session. 🟢 σ<15 · 🟡 15–25 · 🔴 >25 · ⚫ 1 seule partie. Taille grande = ≥ 8 parties." },
+  { title: "Progression (fenêtre N)", color: "var(--green)", text: "Compare la moyenne des N dernières sessions aux N précédentes. Positif = tu progresses sur cette période." },
+];
+
 export default function Dashboard({ sessions }) {
-  const N = 10;
+  const [N, setN] = useState(5);
+  const [showInfo, setShowInfo] = useState(false);
+  const [brushRange, setBrushRange] = useState(null);
+  const [view, setView] = useState("both");
 
   const data = useMemo(() =>
-    [...sessions]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(computeStats)
-      .filter(Boolean)
+    [...sessions].sort((a, b) => a.date.localeCompare(b.date)).map(computeStats).filter(Boolean)
   , [sessions]);
 
   const withTrend = useMemo(() => data.map((d, i) => {
     const win = data.slice(Math.max(0, i - 4), i + 1);
     const trend = +(win.reduce((s, x) => s + x.avg, 0) / win.length).toFixed(1);
-    return { ...d, trend };
+    const sds = win.filter(x => x.sd !== null).map(x => x.sd);
+    const rSD = sds.length ? +(sds.reduce((a, b) => a + b, 0) / sds.length).toFixed(1) : null;
+    return { ...d, trend, rSD, idx: i };
   }), [data]);
+
+  const range = brushRange || { start: 0, end: withTrend.length - 1 };
+  const visible = withTrend.slice(range.start, range.end + 1);
 
   const allScores = sessions.flatMap(s => (s.scores || []).filter(Number.isFinite));
   const allTimeAvg = allScores.length ? +(allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1) : "—";
   const allTimeMax = allScores.length ? Math.max(...allScores) : "—";
 
-  const recent = withTrend.slice(-N);
-  const before = withTrend.slice(-N * 2, -N);
+  const effectiveN = Math.min(N, visible.length);
+  const recent = visible.slice(-effectiveN);
+  const before = visible.slice(-effectiveN * 2, -effectiveN);
   const recentAvg = recent.length ? +(recent.reduce((s, d) => s + d.avg, 0) / recent.length).toFixed(1) : null;
   const beforeAvg = before.length ? +(before.reduce((s, d) => s + d.avg, 0) / before.length).toFixed(1) : null;
   const prog = recentAvg !== null && beforeAvg !== null ? +((recentAvg - beforeAvg)).toFixed(1) : null;
 
-  const yMin = withTrend.length ? Math.floor((Math.min(...withTrend.map(d => d.min)) - 10) / 10) * 10 : 80;
-  const yMax = withTrend.length ? Math.ceil((Math.max(...withTrend.map(d => d.max)) + 15) / 10) * 10 : 260;
+  const visScores = sessions.slice(range.start, range.end + 1).flatMap(s => (s.scores || []).filter(Number.isFinite));
+  const periodAvg = visScores.length ? +(visScores.reduce((a, b) => a + b, 0) / visScores.length).toFixed(1) : "—";
+  const periodMax = visScores.length ? Math.max(...visScores) : "—";
+  const recentSDs = recent.filter(d => d.sd !== null).map(d => d.sd);
+  const recentAvgSD = recentSDs.length ? +(recentSDs.reduce((a, b) => a + b, 0) / recentSDs.length).toFixed(1) : "—";
 
-  if (!sessions.length) {
-    return (
-      <div style={{ padding: "60px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🎳</div>
-        <p style={{ color: "var(--text-2)", fontSize: 15 }}>Aucune session pour l'instant.</p>
-        <p style={{ color: "var(--text-3)", fontSize: 13, marginTop: 4 }}>Enregistre ta première partie !</p>
-      </div>
-    );
-  }
+  const yMin = visible.length ? Math.floor((Math.min(...visible.map(d => d.min)) - 10) / 10) * 10 : 80;
+  const yMax = visible.length ? Math.ceil((Math.max(...visible.map(d => d.max)) + 15) / 10) * 10 : 260;
+
+  const brushProps = {
+    dataKey: "idx", startIndex: range.start, endIndex: range.end,
+    onChange: ({ startIndex, endIndex }) => {
+      if (startIndex != null && endIndex != null) setBrushRange({ start: startIndex, end: endIndex });
+    },
+    height: 20, stroke: "var(--border)", fill: "var(--surface-2)", travellerWidth: 10,
+  };
+
+  if (!sessions.length) return (
+    <div style={{ padding: "60px 20px", textAlign: "center" }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🎳</div>
+      <p style={{ color: "var(--text-2)" }}>Aucune session enregistrée.</p>
+    </div>
+  );
 
   return (
-    <div style={{ padding: "20px 16px 32px" }}>
-      <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--text-2)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 20 }}>
-        Statistiques
-      </h2>
+    <div style={{ padding: "16px 12px 32px" }}>
 
-      {/* Stats cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 24 }}>
+      {/* All-time */}
+      <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+        Historique · {sessions.length} sessions · {allScores.length} parties
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
         <StatCard icon="🏆" value={allTimeMax} label="Record" color="var(--green)" />
-        <StatCard icon="🎯" value={allTimeAvg} label="Moyenne" color="var(--gold)" />
-        <StatCard
-          icon={prog != null ? (prog >= 0 ? "📈" : "📉") : "—"}
-          value={prog != null ? (prog >= 0 ? `+${prog}` : prog) : "—"}
-          label={`Prog. (${N})`}
-          color={prog != null ? (prog >= 0 ? "var(--green)" : "var(--red)") : "var(--text-3)"}
-          sub={recentAvg && beforeAvg ? `${beforeAvg} → ${recentAvg}` : null}
-        />
+        <StatCard icon="🎯" value={allTimeAvg} label="Moy. totale" color="var(--gold)" />
+        <StatCard icon="📊" value={(() => { const sds = withTrend.filter(d => d.sd !== null); return sds.length ? +(sds.reduce((a, b) => a + b.sd, 0) / sds.length).toFixed(1) : "—"; })()} label="σ all-time" color="var(--red)" />
       </div>
 
-      {/* Chart */}
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "16px 0 8px", marginBottom: 8 }}>
-        <div style={{ paddingLeft: 16, marginBottom: 12, fontSize: 12, fontWeight: 700, color: "var(--text-2)", letterSpacing: 1, textTransform: "uppercase" }}>
-          Performance · {sessions.length} sessions
+      {/* View toggle */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {[["both", "Tout"], ["perf", "Performance"], ["reg", "Régularité"]].map(([k, l]) => (
+          <button key={k} onClick={() => setView(k)} style={{
+            flex: 1, padding: "7px 4px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
+            background: view === k ? "var(--primary)" : "var(--surface)", color: view === k ? "#fff" : "var(--text-2)",
+            fontSize: 11, fontWeight: 700
+          }}>{l}</button>
+        ))}
+        <button onClick={() => setShowInfo(true)} style={{ width: 34, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)", fontSize: 14 }}>ℹ</button>
+      </div>
+
+      {/* Chart Performance */}
+      {(view === "perf" || view === "both") && (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 0 6px", marginBottom: 10 }}>
+          <div style={{ paddingLeft: 14, marginBottom: 8, fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: 1, textTransform: "uppercase" }}>📈 Performance · glisser pour zoomer</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={withTrend} margin={{ left: 0, right: 14, top: 4, bottom: 48 }}>
+              <defs>
+                <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#F0C040" stopOpacity={0.12} />
+                  <stop offset="100%" stopColor="#F0C040" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="idx" type="number" domain={[range.start, range.end]}
+                tickFormatter={i => withTrend[i]?.date.slice(0, 5) ?? ""}
+                tick={{ fill: "var(--text-3)", fontSize: 9 }} angle={-45} textAnchor="end" height={52} stroke="var(--border)" />
+              <YAxis domain={[yMin, yMax]} tick={{ fill: "var(--text-2)", fontSize: 10 }} width={36} stroke="var(--border)" tickLine={false} />
+              <Tooltip content={<PerfTooltip />} />
+              <ReferenceLine y={+allTimeAvg} stroke="var(--gold)" strokeOpacity={0.2} strokeDasharray="6 4"
+                label={{ value: `moy. ${allTimeAvg}`, position: "insideRight", fill: "var(--gold)", fontSize: 9, fillOpacity: 0.6 }} />
+              <Area type="monotone" dataKey="max" stroke="none" fill="rgba(96,165,250,0.06)" />
+              <Area type="monotone" dataKey="min" stroke="none" fill="var(--bg)" fillOpacity={1} />
+              <Area type="monotone" dataKey="avg" stroke="none" fill="url(#gArea)" />
+              <Line type="monotone" dataKey="min" stroke="var(--blue)" strokeWidth={1} dot={false} strokeDasharray="3 2" name="Min" />
+              <Line type="monotone" dataKey="max" stroke="var(--green)" strokeWidth={1} dot={false} strokeDasharray="3 2" name="Max" />
+              <Line type="monotone" dataKey="trend" stroke="var(--purple)" strokeWidth={2} dot={false} strokeDasharray="6 3" name="Tendance" />
+              <Line type="monotone" dataKey="avg" stroke="var(--gold)" strokeWidth={2} name="Moy."
+                dot={({ cx, cy, payload }) => (
+                  <circle key={`${cx}${cy}`} cx={cx} cy={cy} r={payload.n >= 8 ? 5 : 3.5}
+                    fill={payload.sd === null ? "var(--text-3)" : sdColor(payload.sd)}
+                    stroke="var(--bg)" strokeWidth={1.5} />
+                )} />
+              <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 10, paddingBottom: 4 }} />
+              <Brush {...brushProps} />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
-        <ResponsiveContainer width="100%" height={240}>
-          <ComposedChart data={withTrend} margin={{ left: 0, right: 16, top: 4, bottom: 24 }}>
-            <defs>
-              <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.12} />
-                <stop offset="100%" stopColor="var(--gold)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="date" tick={{ fill: "var(--text-3)", fontSize: 9 }} angle={-45} textAnchor="end" height={44} stroke="var(--border)" />
-            <YAxis domain={[yMin, yMax]} tick={{ fill: "var(--text-2)", fontSize: 10 }} width={36} stroke="var(--border)" tickLine={false} />
-            <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine y={+allTimeAvg} stroke="var(--gold)" strokeOpacity={0.2} strokeDasharray="6 4" />
-            <Area type="monotone" dataKey="max" stroke="none" fill="rgba(96,165,250,0.06)" />
-            <Area type="monotone" dataKey="min" stroke="none" fill="var(--bg)" fillOpacity={1} />
-            <Area type="monotone" dataKey="avg" stroke="none" fill="url(#gArea)" />
-            <Line type="monotone" dataKey="min" stroke="var(--blue)" strokeWidth={1} dot={false} strokeDasharray="3 2" />
-            <Line type="monotone" dataKey="max" stroke="var(--green)" strokeWidth={1} dot={false} strokeDasharray="3 2" />
-            <Line type="monotone" dataKey="trend" stroke="var(--purple)" strokeWidth={2} dot={false} strokeDasharray="6 3" />
-            <Line type="monotone" dataKey="avg" stroke="var(--gold)" strokeWidth={2}
-              dot={({ cx, cy, payload }) => (
-                <circle key={`${cx}${cy}`} cx={cx} cy={cy}
-                  r={payload.n >= 8 ? 5 : 3.5}
-                  fill={payload.sd === null ? "var(--text-3)" : sdColor(payload.sd)}
-                  stroke="var(--bg)" strokeWidth={1.5} />
-              )} />
-          </ComposedChart>
-        </ResponsiveContainer>
+      )}
+
+      {/* Chart Régularité */}
+      {(view === "reg" || view === "both") && (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 0 6px", marginBottom: 10 }}>
+          <div style={{ paddingLeft: 14, marginBottom: 8, fontSize: 11, fontWeight: 700, color: "var(--purple)", letterSpacing: 1, textTransform: "uppercase" }}>📊 Régularité σ</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={withTrend} margin={{ left: 0, right: 14, top: 4, bottom: 48 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="idx" type="number" domain={[range.start, range.end]}
+                tickFormatter={i => withTrend[i]?.date.slice(0, 5) ?? ""}
+                tick={{ fill: "var(--text-3)", fontSize: 9 }} angle={-45} textAnchor="end" height={52} stroke="var(--border)" />
+              <YAxis domain={[0, 50]} tick={{ fill: "var(--text-2)", fontSize: 10 }} width={36} stroke="var(--border)" tickLine={false} />
+              <Tooltip content={<RegTooltip />} />
+              <ReferenceLine y={15} stroke="var(--green)" strokeOpacity={0.3} strokeDasharray="4 4" label={{ value: "σ=15", position: "insideRight", fill: "var(--green)", fontSize: 9, fillOpacity: 0.7 }} />
+              <ReferenceLine y={25} stroke="var(--gold)" strokeOpacity={0.3} strokeDasharray="4 4" label={{ value: "σ=25", position: "insideRight", fill: "var(--gold)", fontSize: 9, fillOpacity: 0.7 }} />
+              <Bar dataKey="sd" name="σ" radius={[3, 3, 0, 0]} maxBarSize={12}>
+                {withTrend.map((d, i) => <Cell key={i} fill={sdColor(d.sd)} fillOpacity={0.85} />)}
+              </Bar>
+              <Line type="monotone" dataKey="rSD" stroke="var(--purple)" strokeWidth={2} dot={false} strokeDasharray="6 3" name="Tendance σ" />
+              <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 10, paddingBottom: 4 }} />
+              <Brush {...brushProps} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Stats dynamiques */}
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 14 }}>
+        <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+          Sélection · {visible.length} sessions
+          {brushRange && (
+            <button onClick={() => setBrushRange(null)} style={{ marginLeft: 10, fontSize: 10, color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}>
+              Reset
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 14 }}>
+          <StatCard icon="🎯" value={periodAvg} label="Moy. période" color="var(--gold)" />
+          <StatCard icon="🏅" value={periodMax} label="Meilleur" color="var(--green)" />
+          <StatCard icon="📊" value={recentAvgSD} label={`σ (${effectiveN})`} color="var(--red)" />
+        </div>
+
+        {/* Fenêtre N */}
+        <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+          Fenêtre — {effectiveN} dernières sessions
+        </div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+          {[1, 2, 3, 5, 7, 10, 15, 20].map(n => (
+            <button key={n} onClick={() => setN(n)} style={{
+              padding: "5px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
+              background: N === n ? "var(--primary)" : "var(--surface-2)",
+              color: N === n ? "#fff" : "var(--text-2)", fontSize: 11, fontWeight: 700
+            }}>{n}</button>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <StatCard
+            icon={recentAvgSD !== "—" ? (recentAvgSD < 15 ? "🟢" : recentAvgSD < 25 ? "🟡" : "🔴") : "⚫"}
+            value={recentAvgSD}
+            label={`σ récent (${effectiveN})`}
+            color="var(--red)"
+          />
+          <StatCard
+            icon={prog != null ? (prog >= 0 ? "⬆️" : "⬇️") : "—"}
+            value={prog != null ? (prog >= 0 ? `+${prog}` : `${prog}`) : "—"}
+            label="Progression"
+            color={prog != null ? (prog >= 0 ? "var(--green)" : "var(--red)") : "var(--text-3)"}
+            sub={beforeAvg && recentAvg ? `${beforeAvg} → ${recentAvg}` : "pas assez de données"}
+          />
+        </div>
       </div>
 
-      <p style={{ fontSize: 11, color: "var(--text-3)", textAlign: "center" }}>
-        Point coloré = régularité · 🟢 σ&lt;15 · 🟡 15–25 · 🔴 &gt;25
-      </p>
+      {/* Modal info */}
+      {showInfo && (
+        <div onClick={() => setShowInfo(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "flex-end" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg) var(--radius-lg) 0 0", padding: "20px 16px 32px", width: "100%", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Guide des stats</span>
+              <button onClick={() => setShowInfo(false)} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-2)", color: "var(--text-2)", fontSize: 16 }}>×</button>
+            </div>
+            {INFO_CONTENT.map(({ title, color, text }) => (
+              <div key={title} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 4 }}>{title}</div>
+                <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.6 }}>{text}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
