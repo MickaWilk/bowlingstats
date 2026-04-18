@@ -52,7 +52,12 @@ function AppInner() {
       {/* Header */}
       <header style={{ position: "sticky", top: 0, zIndex: 50, background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px 0" }}>
-          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)", letterSpacing: -0.3 }}>🎳 BowlingStats</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)", letterSpacing: -0.3 }}>
+            🎳 BowlingStats
+            <span style={{ fontSize: 9, fontWeight: 400, color: "var(--text-3)", marginLeft: 6, letterSpacing: 0 }}>
+              {__COMMIT__} · {__BUILD_DATE__}
+            </span>
+          </span>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setPref(nextTheme[pref])} style={iconBtnStyle}>{THEME_ICONS[pref]}</button>
             <button onClick={() => supabase.auth.signOut()} style={iconBtnStyle}>↩</button>

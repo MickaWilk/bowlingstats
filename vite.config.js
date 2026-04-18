@@ -1,8 +1,18 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { execSync } from "child_process";
+
+const commitHash = (() => {
+  try { return execSync("git rev-parse --short HEAD").toString().trim(); }
+  catch { return "dev"; }
+})();
 
 export default defineConfig({
+  define: {
+    __COMMIT__: JSON.stringify(commitHash),
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+  },
   plugins: [
     react(),
     VitePWA({
