@@ -63,11 +63,26 @@ function Row({ label, value, color }) {
 
 function StatCard({ icon, value, label, color, sub }) {
   return (
-    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 10px" }}>
-      <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 3 }}>{label}</div>
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 8px" }}>
+      <div style={{ fontSize: 14, marginBottom: 2 }}>{icon}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>{label}</div>
       {sub && <div style={{ fontSize: 10, color: "var(--text-2)", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function StatChip({ icon, value, label, color }) {
+  return (
+    <div style={{
+      display: "inline-flex", flexDirection: "column", alignItems: "center",
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: "var(--radius-md)", padding: "6px 12px",
+      minWidth: 72, flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 11, marginBottom: 1 }}>{icon}</span>
+      <span style={{ fontSize: 17, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontSize: 9, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2, whiteSpace: "nowrap" }}>{label}</span>
     </div>
   );
 }
@@ -138,20 +153,21 @@ export default function Dashboard({ sessions }) {
   );
 
   return (
-    <div style={{ padding: "16px 12px 32px" }}>
+    <div style={{ padding: "12px 10px 24px" }}>
 
-      {/* All-time */}
-      <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+      {/* All-time — bande horizontale scrollable */}
+      <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
         Historique · {sessions.length} sessions · {allScores.length} parties
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
-        <StatCard icon="🏆" value={allTimeMax} label="Record" color="var(--green)" />
-        <StatCard icon="🎯" value={allTimeAvg} label="Moy. totale" color="var(--gold)" />
-        <StatCard icon="📊" value={(() => { const sds = withTrend.filter(d => d.sd !== null); return sds.length ? +(sds.reduce((a, b) => a + b.sd, 0) / sds.length).toFixed(1) : "—"; })()} label="σ all-time" color="var(--red)" />
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", WebkitOverflowScrolling: "touch", marginBottom: 12, paddingBottom: 2 }}>
+        <StatChip icon="🏆" value={allTimeMax} label="Record" color="var(--green)" />
+        <StatChip icon="🎯" value={allTimeAvg} label="Moy. totale" color="var(--gold)" />
+        <StatChip icon="📊" value={(() => { const sds = withTrend.filter(d => d.sd !== null); return sds.length ? +(sds.reduce((a, b) => a + b.sd, 0) / sds.length).toFixed(1) : "—"; })()} label="σ all-time" color="var(--red)" />
+        <StatChip icon="🎳" value={sessions.length} label="Sessions" color="var(--text)" />
       </div>
 
       {/* View toggle */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
         {[["both", "Tout"], ["perf", "Performance"], ["reg", "Régularité"]].map(([k, l]) => (
           <button key={k} onClick={() => setView(k)} style={{
             flex: 1, padding: "7px 4px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
@@ -164,9 +180,9 @@ export default function Dashboard({ sessions }) {
 
       {/* Chart Performance */}
       {(view === "perf" || view === "both") && (
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 0 6px", marginBottom: 10 }}>
-          <div style={{ paddingLeft: 14, marginBottom: 8, fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: 1, textTransform: "uppercase" }}>📈 Performance · glisser pour zoomer</div>
-          <ResponsiveContainer width="100%" height={260}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "8px 0 4px", marginBottom: 8 }}>
+          <div style={{ paddingLeft: 12, marginBottom: 6, fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: 1, textTransform: "uppercase" }}>📈 Performance · glisser pour zoomer</div>
+          <ResponsiveContainer width="100%" height={Math.min(Math.round(window.innerHeight * 0.55), 300)}>
             <ComposedChart data={withTrend} margin={{ left: 0, right: 14, top: 4, bottom: 48 }}>
               <defs>
                 <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1">
@@ -203,9 +219,9 @@ export default function Dashboard({ sessions }) {
 
       {/* Chart Régularité */}
       {(view === "reg" || view === "both") && (
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 0 6px", marginBottom: 10 }}>
-          <div style={{ paddingLeft: 14, marginBottom: 8, fontSize: 11, fontWeight: 700, color: "var(--purple)", letterSpacing: 1, textTransform: "uppercase" }}>📊 Régularité σ</div>
-          <ResponsiveContainer width="100%" height={200}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "8px 0 4px", marginBottom: 8 }}>
+          <div style={{ paddingLeft: 12, marginBottom: 6, fontSize: 11, fontWeight: 700, color: "var(--purple)", letterSpacing: 1, textTransform: "uppercase" }}>📊 Régularité σ</div>
+          <ResponsiveContainer width="100%" height={Math.min(Math.round(window.innerHeight * 0.35), 200)}>
             <ComposedChart data={withTrend} margin={{ left: 0, right: 14, top: 4, bottom: 48 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="idx" type="number" domain={[range.start, range.end]}
@@ -227,50 +243,41 @@ export default function Dashboard({ sessions }) {
       )}
 
       {/* Stats dynamiques */}
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 14 }}>
-        <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
-          Sélection · {visible.length} sessions
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "10px 10px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1 }}>
+            Sélection · {visible.length} sessions
+          </span>
           {brushRange && (
-            <button onClick={() => setBrushRange(null)} style={{ marginLeft: 10, fontSize: 10, color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}>
+            <button onClick={() => setBrushRange(null)} style={{ fontSize: 10, color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}>
               Reset
             </button>
           )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 14 }}>
-          <StatCard icon="🎯" value={periodAvg} label="Moy. période" color="var(--gold)" />
-          <StatCard icon="🏅" value={periodMax} label="Meilleur" color="var(--green)" />
-          <StatCard icon="📊" value={recentAvgSD} label={`σ (${effectiveN})`} color="var(--red)" />
-        </div>
-
-        {/* Fenêtre N */}
-        <div style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-          Fenêtre — {effectiveN} dernières sessions
-        </div>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-          {[1, 2, 3, 5, 7, 10, 15, 20].map(n => (
-            <button key={n} onClick={() => setN(n)} style={{
-              padding: "5px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
-              background: N === n ? "var(--primary)" : "var(--surface-2)",
-              color: N === n ? "#fff" : "var(--text-2)", fontSize: 11, fontWeight: 700
-            }}>{n}</button>
-          ))}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <StatCard
-            icon={recentAvgSD !== "—" ? (recentAvgSD < 15 ? "🟢" : recentAvgSD < 25 ? "🟡" : "🔴") : "⚫"}
-            value={recentAvgSD}
-            label={`σ récent (${effectiveN})`}
-            color="var(--red)"
-          />
-          <StatCard
+        {/* Bande horizontale scrollable */}
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", WebkitOverflowScrolling: "touch", marginBottom: 10, paddingBottom: 2 }}>
+          <StatChip icon="🎯" value={periodAvg} label="Moy. période" color="var(--gold)" />
+          <StatChip icon="🏅" value={periodMax} label="Meilleur" color="var(--green)" />
+          <StatChip icon="📊" value={recentAvgSD} label={`σ (${effectiveN})`} color="var(--red)" />
+          <StatChip
             icon={prog != null ? (prog >= 0 ? "⬆️" : "⬇️") : "—"}
             value={prog != null ? (prog >= 0 ? `+${prog}` : `${prog}`) : "—"}
             label="Progression"
             color={prog != null ? (prog >= 0 ? "var(--green)" : "var(--red)") : "var(--text-3)"}
-            sub={beforeAvg && recentAvg ? `${beforeAvg} → ${recentAvg}` : "pas assez de données"}
           />
+        </div>
+
+        {/* Fenêtre N */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 1 }}>N =</span>
+          {[1, 2, 3, 5, 7, 10, 15, 20].map(n => (
+            <button key={n} onClick={() => setN(n)} style={{
+              padding: "4px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
+              background: N === n ? "var(--primary)" : "var(--surface-2)",
+              color: N === n ? "#fff" : "var(--text-2)", fontSize: 11, fontWeight: 700
+            }}>{n}</button>
+          ))}
         </div>
       </div>
 

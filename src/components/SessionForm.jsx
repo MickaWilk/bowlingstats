@@ -166,7 +166,7 @@ export default function SessionForm({ userId, onSaved }) {
   // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: "20px 16px 40px" }}>
+    <div style={{ padding: "14px 12px 24px" }}>
 
       <h2 style={sectionTitleStyle}>Nouvelle session</h2>
 
@@ -207,7 +207,7 @@ export default function SessionForm({ userId, onSaved }) {
                 style={{
                   ...inputStyle,
                   flex: 1,
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: 700,
                   textAlign: "center",
                   color:
@@ -434,7 +434,7 @@ const sectionTitleStyle = {
   color: "var(--text-2)",
   letterSpacing: 1,
   textTransform: "uppercase",
-  marginBottom: 20,
+  marginBottom: 14,
 };
 
 const labelStyle = {
@@ -475,13 +475,13 @@ const removeGameBtnStyle = {
 
 const addGameBtnStyle = {
   width: "100%",
-  padding: "10px",
+  padding: "7px",
   background: "var(--surface-2)",
   border: "1px dashed var(--border)",
   borderRadius: "var(--radius-sm)",
   color: "var(--text-2)",
   fontSize: 13,
-  marginBottom: 16,
+  marginBottom: 12,
 };
 
 const advancedToggleStyle = {
