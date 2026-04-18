@@ -8,7 +8,7 @@
  *
  * Format frames : tableau de 10 éléments
  *   frames[i] = [] | [r1] | [r1, r2] | frame 10 : [r1, r2?, r3?]
- *   valeurs : 0–10, "X" (strike), "/" (spare), "G" (gutter=0)
+ *   valeurs : 0–10, "X" (strike), "/" (spare), "-" (gutter=0)
  */
 
 import { useState } from "react";
@@ -18,7 +18,7 @@ import { useState } from "react";
 function rollValue(val, pinsBefore = 0) {
   if (val === "X") return 10;
   if (val === "/") return 10 - pinsBefore;
-  if (val === "G") return 0;
+  if (val === "G" || val === "-") return 0;
   const n = parseInt(val, 10);
   return isNaN(n) ? null : n;
 }
@@ -109,9 +109,19 @@ export function emptyFrames() {
 export default function FrameInput({ gameIndex, frames, onChange }) {
   // activeFrame : index de la frame en cours de saisie
   const [activeFrame, setActiveFrame] = useState(0);
+  // splits : annotation purement informative — aucun impact sur le calcul
+  const [splits, setSplits] = useState(Array(10).fill(false));
 
   const runningTotals = calcRunningTotals(frames);
   const total = calcTotal(frames);
+
+  function toggleSplit(frameIdx) {
+    setSplits(prev => {
+      const next = [...prev];
+      next[frameIdx] = !next[frameIdx];
+      return next;
+    });
+  }
 
   // ─── Logique de saisie par frame ──────────────────────────────────────────
 
@@ -176,6 +186,12 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
     const newFrames = frames.map(f => [...f]);
     newFrames[frameIdx] = [];
     setActiveFrame(frameIdx);
+    // Réinitialiser le split sur cette frame
+    setSplits(prev => {
+      const next = [...prev];
+      next[frameIdx] = false;
+      return next;
+    });
     onChange(newFrames, calcTotal(newFrames));
   }
 
@@ -187,11 +203,11 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
 
     if (!isLast) {
       if (frame.length === 0) {
-        return ["X", "G", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        return ["X", "-", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
       } else if (frame.length === 1) {
         const r1 = rollValue(frame[0]);
         const remaining = 10 - r1;
-        const btns = ["G"];
+        const btns = ["-"];
         if (remaining === 10) btns.push("/");
         else btns.push("/");
         for (let i = 1; i < remaining; i++) btns.push(String(i));
@@ -201,13 +217,13 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
     } else {
       // Frame 10
       if (frame.length === 0) {
-        return ["X", "G", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        return ["X", "-", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
       } else if (frame.length === 1) {
         if (frame[0] === "X") {
-          return ["X", "G", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+          return ["X", "-", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
         }
         const r1 = rollValue(frame[0]);
-        const btns = ["G", "/"];
+        const btns = ["-", "/"];
         for (let i = 1; i < 10 - r1; i++) btns.push(String(i));
         return btns;
       } else if (frame.length === 2) {
@@ -219,10 +235,10 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
         const isStrike2 = frame[1] === "X";
         if (isSpare10 || isStrike1 || isStrike2) {
           if (isStrike2 || (isStrike1 && r2 === 10)) {
-            return ["X", "G", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+            return ["X", "-", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
           }
           const pinsLeft = isStrike1 ? 10 - r2 : 10;
-          const btns = ["G"];
+          const btns = ["-"];
           if (pinsLeft === 10) btns.push("X");
           else btns.push("/");
           for (let i = 1; i < pinsLeft; i++) btns.push(String(i));
@@ -251,7 +267,7 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
   function displayRoll(roll, prevRoll = null) {
     if (roll === "X") return "X";
     if (roll === "/") return "/";
-    if (roll === "G") return "G";
+    if (roll === "G" || roll === "-") return "-";
     return roll;
   }
 
@@ -332,11 +348,20 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
                         <div style={{ ...rollBoxStyle(true), color: "var(--gold)", fontWeight: 800 }}>X</div>
                       </>
                     ) : (
-                      [0, 1].map(ri => (
-                        <div key={ri} style={rollBoxStyle(frame[ri] !== undefined)}>
-                          {frame[ri] !== undefined ? displayRoll(frame[ri], ri === 1 ? frame[0] : null) : "·"}
-                        </div>
-                      ))
+                      [0, 1].map(ri => {
+                        const hasSplit = ri === 0 && splits[fi] && frame[0] !== undefined;
+                        return (
+                          <div key={ri} style={rollBoxStyle(frame[ri] !== undefined)}>
+                            {frame[ri] !== undefined ? (
+                              hasSplit ? (
+                                <span style={splitCircleStyle}>{displayRoll(frame[ri])}</span>
+                              ) : (
+                                displayRoll(frame[ri], ri === 1 ? frame[0] : null)
+                              )
+                            ) : "·"}
+                          </div>
+                        );
+                      })
                     )
                   )}
                 </div>
@@ -364,6 +389,21 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
           <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 6, textAlign: "center" }}>
             Frame {activeFrame + 1} — lancer {(frames[activeFrame] || []).length + 1}
           </div>
+          {/* Toggle split — visible seulement après le 1er lancer non-strike */}
+          {(frames[activeFrame] || []).length === 1 && frames[activeFrame][0] !== "X" && (
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+              <button
+                type="button"
+                onClick={() => toggleSplit(activeFrame)}
+                title="Marquer comme split"
+                style={splitToggleStyle(splits[activeFrame])}
+              >
+              </button>
+              <span style={{ fontSize: 10, color: "var(--text-3)", marginLeft: 6, alignSelf: "center" }}>
+                Split
+              </span>
+            </div>
+          )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
             {getAvailableButtons(activeFrame).map(btn => (
               <button
@@ -407,6 +447,36 @@ export default function FrameInput({ gameIndex, frames, onChange }) {
 
 // ─── Styles helpers ───────────────────────────────────────────────────────────
 
+// Cercle rouge autour du chiffre dans la grille (notation split standard)
+const splitCircleStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 14,
+  height: 14,
+  borderRadius: "50%",
+  border: "1.5px solid var(--red)",
+  fontSize: 9,
+  fontWeight: 700,
+  color: "var(--red)",
+  lineHeight: 1,
+};
+
+// Bouton toggle split dans le pad
+function splitToggleStyle(active) {
+  return {
+    width: 20,
+    height: 20,
+    borderRadius: "50%",
+    border: active ? "2px solid var(--red)" : "2px solid var(--border)",
+    background: active ? "rgba(255,112,112,0.18)" : "transparent",
+    cursor: "pointer",
+    transition: "border-color var(--transition), background var(--transition)",
+    padding: 0,
+    flexShrink: 0,
+  };
+}
+
 function rollBoxStyle(filled) {
   return {
     width: 18,
@@ -425,7 +495,7 @@ function rollBoxStyle(filled) {
 function padBtnStyle(btn) {
   const isStrike = btn === "X";
   const isSpare = btn === "/";
-  const isGutter = btn === "G";
+  const isGutter = btn === "-";
   return {
     width: 44,
     height: 44,

@@ -11,45 +11,45 @@
 }
 
 [data-theme="dark"] {
-  --bg:          #0B0B15;
-  --surface:     #13131F;
-  --surface-2:   #1A1A2E;
-  --border:      rgba(255,255,255,0.07);
-  --border-focus: rgba(233,69,96,0.5);
-  --text:        #E8E8F2;
-  --text-2:      #8080A0;
-  --text-3:      #404060;
+  --bg:          #080810;
+  --surface:     #111120;
+  --surface-2:   #1C1C30;
+  --border:      rgba(255,255,255,0.12);
+  --border-focus: rgba(233,69,96,0.6);
+  --text:        #F0F0FA;
+  --text-2:      #9090B8;
+  --text-3:      #505070;
   --primary:     #E94560;
-  --primary-dim: rgba(233,69,96,0.15);
-  --gold:        #F0C040;
-  --gold-dim:    rgba(240,192,64,0.15);
-  --green:       #4ADE80;
-  --green-dim:   rgba(74,222,128,0.15);
-  --red:         #F87171;
-  --blue:        #60A5FA;
-  --purple:      #A78BFA;
-  --shadow:      0 4px 24px rgba(0,0,0,0.4);
+  --primary-dim: rgba(233,69,96,0.18);
+  --gold:        #F5CC45;
+  --gold-dim:    rgba(245,204,69,0.18);
+  --green:       #50E890;
+  --green-dim:   rgba(80,232,144,0.18);
+  --red:         #FF7070;
+  --blue:        #70B8FF;
+  --purple:      #B090FF;
+  --shadow:      0 4px 32px rgba(0,0,0,0.6);
 }
 
 [data-theme="light"] {
-  --bg:          #F2F2FC;
+  --bg:          #EEEEF8;
   --surface:     #FFFFFF;
-  --surface-2:   #E8E8F6;
-  --border:      rgba(0,0,0,0.07);
+  --surface-2:   #E4E4F4;
+  --border:      rgba(0,0,0,0.10);
   --border-focus: rgba(233,69,96,0.4);
-  --text:        #18182A;
-  --text-2:      #50507A;
-  --text-3:      #A0A0C0;
+  --text:        #14142A;
+  --text-2:      #484870;
+  --text-3:      #9090B0;
   --primary:     #E94560;
-  --primary-dim: rgba(233,69,96,0.1);
-  --gold:        #B07C10;
-  --gold-dim:    rgba(176,124,16,0.1);
-  --green:       #16A34A;
-  --green-dim:   rgba(22,163,74,0.1);
-  --red:         #DC2626;
-  --blue:        #2563EB;
-  --purple:      #7C3AED;
-  --shadow:      0 4px 24px rgba(0,0,0,0.08);
+  --primary-dim: rgba(233,69,96,0.12);
+  --gold:        #A06A00;
+  --gold-dim:    rgba(160,106,0,0.12);
+  --green:       #0E8A3A;
+  --green-dim:   rgba(14,138,58,0.12);
+  --red:         #CC1A1A;
+  --blue:        #1A50CC;
+  --purple:      #6030CC;
+  --shadow:      0 4px 24px rgba(0,0,0,0.10);
 }
 
 body {
